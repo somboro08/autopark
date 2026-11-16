@@ -8,7 +8,10 @@ plugins {
 android {
     namespace = "com.parkingmotos.autopark_mvp"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Pas de code natif (C/C++) dans ce projet : la version du NDK n'est pas
+    // requise. La laisser déclarée force AGP à télécharger ~1 Go de NDK à
+    // chaque build (source d'échecs en CI).
+    // ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
