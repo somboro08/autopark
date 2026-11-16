@@ -1,9 +1,22 @@
+/// Véhicule (moto) enregistré dans AutoPark.
+///
+/// Un véhicule porte deux identités distinctes :
+/// - son **identité de véhicule** (`qrCode` + `numericCode`) : statique,
+///   partageable, elle sert à s'enregistrer dans un nouveau centre ;
+/// - son **identité de garde** (jeton dynamique) : portée par la session de
+///   parking, jamais par le véhicule.
+///
+/// [ownerId] référence le profil propriétaire lorsqu'il possède un compte dans
+/// l'application. [centerId] est nul tant que le véhicule n'a pas été rattaché
+/// à un centre de garde.
 class Vehicle {
   final int? id;
   final String plate;
   final String ownerName;
   final String? ownerPhone;
-  final int centerId;
+  final int? centerId;
+  final int? ownerId;
+  final String? model;
   final String? qrCode;
   final String? numericCode;
   final String? photoPath;
@@ -14,7 +27,9 @@ class Vehicle {
     required this.plate,
     required this.ownerName,
     this.ownerPhone,
-    required this.centerId,
+    this.centerId,
+    this.ownerId,
+    this.model,
     this.qrCode,
     this.numericCode,
     this.photoPath,
@@ -28,6 +43,8 @@ class Vehicle {
       'owner_name': ownerName,
       'owner_phone': ownerPhone,
       'center_id': centerId,
+      'owner_id': ownerId,
+      'model': model,
       'qr_code': qrCode,
       'numeric_code': numericCode,
       'photo_path': photoPath,
@@ -36,14 +53,20 @@ class Vehicle {
   }
 
   factory Vehicle.fromMap(Map<String, dynamic> map) {
+    int? asInt(Object? value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      return int.tryParse(value.toString());
+    }
+
     return Vehicle(
-      id: map['id'] is int ? map['id'] : int.tryParse(map['id']?.toString() ?? '0'),
+      id: asInt(map['id']),
       plate: map['plate'] ?? '',
       ownerName: map['owner_name'] ?? '',
       ownerPhone: map['owner_phone'],
-      centerId: map['center_id'] is int
-          ? map['center_id']
-          : int.tryParse(map['center_id']?.toString() ?? '0') ?? 0,
+      centerId: asInt(map['center_id']),
+      ownerId: asInt(map['owner_id']),
+      model: map['model'],
       qrCode: map['qr_code'],
       numericCode: map['numeric_code'],
       photoPath: map['photo_path'],
@@ -53,12 +76,21 @@ class Vehicle {
     );
   }
 
+  /// Libellé court : plaque + modèle si disponible.
+  String get displayLabel {
+    final m = model?.trim();
+    if (m == null || m.isEmpty) return plate.toUpperCase();
+    return '${plate.toUpperCase()} · $m';
+  }
+
   Vehicle copyWith({
     int? id,
     String? plate,
     String? ownerName,
     String? ownerPhone,
     int? centerId,
+    int? ownerId,
+    String? model,
     String? qrCode,
     String? numericCode,
     String? photoPath,
@@ -70,6 +102,8 @@ class Vehicle {
       ownerName: ownerName ?? this.ownerName,
       ownerPhone: ownerPhone ?? this.ownerPhone,
       centerId: centerId ?? this.centerId,
+      ownerId: ownerId ?? this.ownerId,
+      model: model ?? this.model,
       qrCode: qrCode ?? this.qrCode,
       numericCode: numericCode ?? this.numericCode,
       photoPath: photoPath ?? this.photoPath,
@@ -79,6 +113,6 @@ class Vehicle {
 
   @override
   String toString() {
-    return 'Vehicle(id: $id, plate: $plate, owner: $ownerName, centerId: $centerId)';
+    return 'Vehicle(id: $id, plate: $plate, ownerId: $ownerId, centerId: $centerId)';
   }
 }

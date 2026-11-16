@@ -1,7 +1,10 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'owner_home_screen.dart';
+import 'profile_picker_screen.dart';
 import '../database/database_helper.dart';
+import '../models/app_user.dart';
+import '../state/user_session.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../utils/route_animations.dart';
@@ -30,16 +33,51 @@ class _SplashScreenState extends State<SplashScreen>
     );
     _controller.forward();
 
-    // Seed demo data on first launch so the MVP is explorable immediately.
-    DatabaseHelper().seedDemoDataIfEmpty().catchError((_) {});
+    _initialize();
+  }
 
-    Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          AppRoute.fade(const HomeScreen()),
-        );
+  /// Prépare les données de démonstration, restaure le dernier profil utilisé
+  /// puis ouvre l'espace correspondant (propriétaire ou agent).
+  ///
+  /// L'initialisation est bornée dans le temps : le splash ne doit jamais
+  /// bloquer, même si la base de données est lente ou indisponible.
+  Future<void> _initialize() async {
+    final bootstrap = () async {
+      try {
+        await DatabaseHelper().seedDemoDataIfEmpty();
+      } catch (_) {
+        // Base existante ou indisponible : on continue.
       }
-    });
+      try {
+        return await UserSession.instance.restore();
+      } catch (_) {
+        return null;
+      }
+    }();
+
+    AppUser? user;
+    try {
+      user = await bootstrap.timeout(
+        const Duration(milliseconds: 1500),
+        onTimeout: () => null,
+      );
+    } catch (_) {
+      user = null;
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+
+    final Widget next;
+    if (user == null) {
+      next = const ProfilePickerScreen();
+    } else if (user.role == AppRole.owner) {
+      next = const OwnerHomeScreen();
+    } else {
+      next = const HomeScreen();
+    }
+
+    Navigator.of(context).pushReplacement(AppRoute.fade(next));
   }
 
   @override

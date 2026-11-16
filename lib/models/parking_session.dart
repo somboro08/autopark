@@ -15,6 +15,11 @@ class ParkingSession {
   final SessionStatus status;
   final String? notes;
 
+  /// Jeton de récupération, généré à l'entrée et stocké de façon sécurisée
+  /// sur le téléphone du propriétaire. Il ne sert qu'à libérer le véhicule et
+  /// n'est jamais réutilisable (phase sécurité).
+  final String? retrievalToken;
+
   ParkingSession({
     this.id,
     required this.vehicleId,
@@ -23,6 +28,7 @@ class ParkingSession {
     this.exitTime,
     this.status = SessionStatus.active,
     this.notes,
+    this.retrievalToken,
   });
 
   Map<String, dynamic> toMap() {
@@ -34,6 +40,7 @@ class ParkingSession {
       'exit_time': exitTime?.toIso8601String(),
       'status': status.index,
       'notes': notes,
+      'retrieval_token': retrievalToken,
     };
   }
 
@@ -54,6 +61,7 @@ class ParkingSession {
           : null,
       status: SessionStatus.values[map['status'] ?? 0],
       notes: map['notes'],
+      retrievalToken: map['retrieval_token'],
     );
   }
 
@@ -98,6 +106,7 @@ class ParkingSession {
     DateTime? exitTime,
     SessionStatus? status,
     String? notes,
+    String? retrievalToken,
   }) {
     return ParkingSession(
       id: id ?? this.id,
@@ -107,6 +116,7 @@ class ParkingSession {
       exitTime: exitTime ?? this.exitTime,
       status: status ?? this.status,
       notes: notes ?? this.notes,
+      retrievalToken: retrievalToken ?? this.retrievalToken,
     );
   }
 

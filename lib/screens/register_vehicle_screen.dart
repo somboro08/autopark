@@ -78,8 +78,14 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
       setState(() => _error = 'Veuillez sélectionner un centre');
       return;
     }
-    if (_plateController.text.isEmpty || _ownerController.text.isEmpty) {
-      setState(() => _error = 'Plaque et propriétaire requis');
+    final hasIdentifier = _qrController.text.trim().isNotEmpty ||
+        _numericController.text.trim().isNotEmpty;
+    if (!hasIdentifier &&
+        (_plateController.text.isEmpty || _ownerController.text.isEmpty)) {
+      setState(
+        () => _error =
+            'Scannez le QR ou saisissez le code, sinon renseignez la plaque et le propriétaire',
+      );
       return;
     }
 
@@ -90,25 +96,96 @@ class _RegisterVehicleScreenState extends State<RegisterVehicleScreen> {
     });
 
     try {
+      final centerId = _selectedCenter!.id!;
+      final qr = _qrController.text.trim();
+      final numeric = _numericController.text.trim();
+      final plate = _plateController.text.trim().toUpperCase();
+
+      // 1. Le véhicule possède-t-il déjà une identité dans l'application ?
+      //    (profil propriétaire, ancien passage, etc.)
+      Vehicle? existing;
+      if (qr.isNotEmpty) {
+        existing = await _db.getVehicleByQrCode(qr);
+      }
+      if (existing == null && numeric.isNotEmpty) {
+        existing = await _db.getVehicleByNumericCode(numeric);
+      }
+      if (existing == null && plate.isNotEmpty) {
+        existing = await _db.getVehicleByPlate(plate);
+      }
+
+      final known = existing;
+      if (known != null && known.id != null) {
+        // Une moto ne peut pas être en garde deux fois en même temps.
+        final activeSession =
+            await _db.getActiveSessionForVehicle(known.id!);
+        if (activeSession != null) {
+          setState(() {
+            _isSaving = false;
+            _error =
+                'La moto ${known.plate} est déjà en garde (centre #${activeSession.centerId}). '
+                'Elle doit d\'abord être récupérée.';
+          });
+          return;
+        }
+
+        // Le centre « connaît » désormais ce véhicule.
+        await _db.registerVehicleForCenter(centerId, known.id!);
+        if (known.centerId == null) {
+          await _db.updateVehicle(known.copyWith(centerId: centerId));
+        }
+
+        await _db.insertSession(ParkingSession(
+          vehicleId: known.id!,
+          centerId: centerId,
+          entryTime: DateTime.now(),
+          status: SessionStatus.active,
+        ));
+
+        setState(() {
+          _isSaving = false;
+          _successMessage =
+              'Moto ${known.plate} reconnue — nouvelle garde enregistrée';
+        });
+
+        _plateController.clear();
+        _ownerController.clear();
+        _phoneController.clear();
+        _qrController.clear();
+        _numericController.clear();
+        return;
+      }
+
+      // 2. Véhicule inconnu : la plaque et le propriétaire sont nécessaires.
+      if (plate.isEmpty || _ownerController.text.trim().isEmpty) {
+        setState(() {
+          _isSaving = false;
+          _error = 'Code inconnu. Renseignez la plaque et le propriétaire '
+              'pour créer le véhicule.';
+        });
+        return;
+      }
+
       final vehicle = Vehicle(
-        plate: _plateController.text.trim().toUpperCase(),
+        plate: plate,
         ownerName: _ownerController.text.trim(),
-        ownerPhone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-        centerId: _selectedCenter!.id!,
-        qrCode: _qrController.text.trim().isEmpty ? null : _qrController.text.trim(),
-        numericCode: _numericController.text.trim().isEmpty ? null : _numericController.text.trim(),
+        ownerPhone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        centerId: centerId,
+        qrCode: qr.isEmpty ? _db.generateVehicleQrCode() : qr,
+        numericCode: numeric.isEmpty ? _db.generateNumericCode() : numeric,
       );
 
       final vehicleId = await _db.insertVehicle(vehicle);
+      await _db.registerVehicleForCenter(centerId, vehicleId);
 
-      // Create active parking session
-      final session = ParkingSession(
+      await _db.insertSession(ParkingSession(
         vehicleId: vehicleId,
-        centerId: _selectedCenter!.id!,
+        centerId: centerId,
         entryTime: DateTime.now(),
         status: SessionStatus.active,
-      );
-      await _db.insertSession(session);
+      ));
 
       setState(() {
         _isSaving = false;

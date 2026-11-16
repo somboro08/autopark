@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
+import '../models/app_user.dart';
+import '../screens/profile_picker_screen.dart';
+import '../state/user_session.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme_controller.dart';
+import '../utils/route_animations.dart';
 
 /// Smooth WhatsApp-like bottom sheet for app settings (theme switching).
 Future<void> showAppSettingsSheet(BuildContext context) {
+  final navigator = Navigator.of(context);
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -17,8 +22,9 @@ Future<void> showAppSettingsSheet(BuildContext context) {
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Drag handle
@@ -37,6 +43,78 @@ Future<void> showAppSettingsSheet(BuildContext context) {
               const SizedBox(height: 4),
               Text('Apparence de l\'application', style: theme.textTheme.bodyMedium),
               const SizedBox(height: 20),
+
+              // Profil actif
+              ValueListenableBuilder<AppUser?>(
+                valueListenable: UserSession.instance.current,
+                builder: (context, user, _) {
+                  if (user == null) return const SizedBox.shrink();
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.gold.withValues(alpha: 0.30),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(21),
+                          ),
+                          child: Text(
+                            user.initials,
+                            style: const TextStyle(
+                              color: AppColors.gold,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                user.name,
+                                style: theme.textTheme.titleMedium,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                user.role.label,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontSize: 12,
+                                  color: AppColors.gold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            navigator.pop();
+                            await UserSession.instance.signOut();
+                            navigator.pushAndRemoveUntil(
+                              AppRoute.fade(const ProfilePickerScreen()),
+                              (_) => false,
+                            );
+                          },
+                          child: const Text('Changer'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+
               Text('Thème', style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
               ValueListenableBuilder<ThemeMode>(
@@ -115,6 +193,7 @@ Future<void> showAppSettingsSheet(BuildContext context) {
                 style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
               ),
             ],
+            ),
           ),
         ),
       );

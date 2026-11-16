@@ -1,8 +1,12 @@
 # AutoPark — MVP de sécurisation des parkings motos (Bénin)
 
-Application Flutter mobile permettant à un gardien / gestionnaire de centre de
-garde de motos d'enregistrer les véhicules, de vérifier les identités à la
-sortie et de suivre les dépôts jour par jour.
+Application Flutter mobile à **deux profils** :
+
+- **Propriétaire** : enregistre ses motos une seule fois dans son profil, obtient
+  un **QR code + code numérique d'identité**, suit l'historique de toutes ses
+  gardes et partage sa moto avec n'importe quel centre.
+- **Agent de centre** : gère un ou plusieurs centres de garde, enregistre les
+  dépôts, vérifie les identités à la sortie et suit les véhicules jour par jour.
 
 > Design inspiré de WhatsApp (interface épurée, typographie système lisible),
 > avec une palette **or/jaune + noir** en mode sombre et **or + blanc/gris** en
@@ -11,17 +15,52 @@ sortie et de suivre les dépôts jour par jour.
 
 ---
 
+## 🧠 Principe de sécurité : deux codes, deux rôles
+
+| | Code d'identité (statique) | Jeton de garde (dynamique, à venir) |
+|---|---|---|
+| Représente | « cette moto est à moi » | « je viens la récupérer, maintenant » |
+| Usage | s'enregistrer dans un centre, partager | libérer la moto |
+| Forme | QR `AUTOPARK-XXXXX` + code à 6 chiffres | code rotatif, usage unique |
+| Stockage | dans le profil du propriétaire | **Keystore Android / Keychain iOS** |
+
+Conséquence : connaître le QR ou le code numérique **ne suffit pas** à récupérer
+une moto. La vérification de récupération par jeton dynamique est prévue en
+phase 5.
+
+---
+
 ## ✨ Fonctionnalités du MVP
 
-### 1. Navigation principale (2 onglets)
+### 0. Profils et rôles
+- Sélection du profil au démarrage (« Qui utilise l'application ? ») ou création
+  d'un profil (propriétaire ou agent).
+- Chaque profil garde ses propres données ; changement de profil en un geste
+  depuis les **Paramètres**.
+- Le dernier profil utilisé est mémorisé sur l'appareil.
+
+### 0 bis. Espace propriétaire
+- **Mes motos** : liste des motos du propriétaire, avec plaque, modèle, QR code
+  d'identité et code numérique.
+- Ajout d'une moto : QR + code générés automatiquement, **sans doublon** de
+  plaque pour un même propriétaire.
+- Fiche moto : grand **QR code**, code numérique copiable, partage avec un
+  centre de garde en un tap.
+- **Mon historique** : toutes les gardes, tous centres confondus, avec statut
+  (En cours / Récupéré / Non récupéré), dates et heures.
+
+### 1. Navigation principale (2 onglets) — espace agent
 - **Retrouver un auto** — vérifier les informations d'un véhicule quand son
   propriétaire vient le récupérer.
-- **Enregistrer un auto** — enregistrer un nouveau client / véhicule.
+- **Enregistrer un auto** — enregistrer un dépôt.
 
 ### 2. Vérification par QR / code numérique + plaque
 - Scan du **QR code** (caméra via `mobile_scanner`) ou saisie d'un **code
   numérique**.
 - Recherche du véhicule en base.
+- **Véhicule déjà connu** : si le QR, le code ou la plaque correspond à une moto
+  existante, l'agent ne crée **pas de doublon** — il rattache la moto au centre
+  et ouvre une nouvelle garde.
 - **Vérification de la plaque** : l'agent scanne / saisit la plaque physique et
   le système confirme (ou non) qu'elle correspond au dossier enregistré.
 
@@ -74,16 +113,24 @@ Gestion depuis **Paramètres → Données** (recharger / effacer).
 lib/
 ├── main.dart                     # Point d'entrée + ThemeMode
 ├── database/
-│   └── database_helper.dart      # CRUD SQLite + seed démo
+│   └── database_helper.dart      # CRUD SQLite v2 + seed démo
 ├── models/
+│   ├── app_user.dart             # Profil + rôle (propriétaire / agent)
 │   ├── parking_center.dart       # Centre de garde (délai)
-│   ├── vehicle.dart              # Véhicule / propriétaire
+│   ├── vehicle.dart              # Véhicule + identité (QR / code)
 │   └── parking_session.dart      # Session de garde + statut effectif
+├── state/
+│   └── user_session.dart         # Profil actif (ValueNotifier)
 ├── screens/
-│   ├── splash_screen.dart        # Splash + seed démo
-│   ├── home_screen.dart          # Bottom nav 2 onglets
+│   ├── splash_screen.dart        # Splash + init + routage par rôle
+│   ├── profile_picker_screen.dart    # « Qui utilise l'app ? »
+│   ├── create_profile_screen.dart    # Création d'un profil
+│   ├── owner_home_screen.dart        # Espace propriétaire (2 onglets)
+│   ├── add_owner_vehicle_screen.dart # Ajout d'une moto au profil
+│   ├── owner_vehicle_detail_screen.dart # QR, code, partage, historique
+│   ├── home_screen.dart          # Espace agent (2 onglets)
 │   ├── retrieve_vehicle_screen.dart  # Retrouver + vérif plaque
-│   ├── register_vehicle_screen.dart  # Enregistrer un véhicule
+│   ├── register_vehicle_screen.dart  # Enregistrer un dépôt
 │   ├── scan_qr_screen.dart       # Caméra QR
 │   ├── enter_code_screen.dart    # Saisie code numérique
 │   ├── vehicle_info_screen.dart  # Fiche + marquer récupéré
@@ -97,11 +144,12 @@ lib/
 ├── utils/
 │   └── route_animations.dart     # Transitions de pages
 └── widgets/
-    ├── custom_bottom_nav.dart    # Bottom nav (Iconsax)
+    ├── custom_bottom_nav.dart    # Bottom nav agent (Iconsax)
+    ├── owner_bottom_nav.dart     # Bottom nav propriétaire
     ├── day_tab.dart              # Onglet jour
     ├── status_badge.dart         # Badge statut
     ├── vehicle_card.dart         # Carte véhicule
-    └── app_settings_sheet.dart   # Bottom sheet paramètres
+    └── app_settings_sheet.dart   # Paramètres + profil + thème
 ```
 
 ---
@@ -187,7 +235,22 @@ git push origin v1.0.0
 
 ---
 
-## 🗄️ Schéma de la base SQLite
+## 🗄️ Schéma de la base SQLite (v2)
+
+### `users`
+| Colonne    | Type    | Description                              |
+|------------|---------|------------------------------------------|
+| id         | INTEGER | PK auto-increment                        |
+| role       | TEXT    | `owner` ou `agent`                       |
+| name       | TEXT    | Nom complet                              |
+| phone      | TEXT    | Téléphone (optionnel)                    |
+| created_at | TEXT    | ISO-8601                                 |
+
+### `app_settings`
+| Colonne | Type | Description                                    |
+|---------|------|------------------------------------------------|
+| key     | TEXT | PK (ex. `active_user_id`)                      |
+| value   | TEXT | Valeur                                         |
 
 ### `parking_centers`
 | Colonne          | Type    | Description                          |
@@ -199,55 +262,101 @@ git push origin v1.0.0
 | created_at       | TEXT    | ISO-8601                             |
 
 ### `vehicles`
+| Colonne       | Type    | Description                              |
+|---------------|---------|------------------------------------------|
+| id            | INTEGER | PK                                       |
+| plate         | TEXT    | Plaque d'immatriculation                 |
+| owner_name    | TEXT    | Nom du propriétaire                      |
+| owner_phone   | TEXT    | Téléphone (optionnel)                    |
+| center_id     | INTEGER | FK → parking_centers (**nullable**)      |
+| owner_id      | INTEGER | FK → users (profil propriétaire)         |
+| model         | TEXT    | Modèle de la moto (optionnel)            |
+| qr_code       | TEXT    | QR d'identité (statique)                 |
+| numeric_code  | TEXT    | Code numérique d'identité (statique)     |
+| photo_path    | TEXT    | Photo de contrôle (optionnel)            |
+| created_at    | TEXT    | ISO-8601                                 |
+
+### `center_vehicles`
+Lien « ce centre connaît ce véhicule » (résultat d'un partage).
+
 | Colonne       | Type    | Description                    |
 |---------------|---------|--------------------------------|
 | id            | INTEGER | PK                             |
-| plate         | TEXT    | Plaque d'immatriculation       |
-| owner_name    | TEXT    | Nom du propriétaire            |
-| owner_phone   | TEXT    | Téléphone (optionnel)          |
 | center_id     | INTEGER | FK → parking_centers           |
-| qr_code       | TEXT    | Contenu du QR code             |
-| numeric_code  | TEXT    | Code numérique de secours      |
-| photo_path    | TEXT    | Photo de contrôle (optionnel)  |
-| created_at    | TEXT    | ISO-8601                       |
+| vehicle_id    | INTEGER | FK → vehicles                  |
+| registered_at | TEXT    | ISO-8601                       |
 
 ### `parking_sessions`
-| Colonne     | Type    | Description                                  |
-|-------------|---------|----------------------------------------------|
-| id          | INTEGER | PK                                           |
-| vehicle_id  | INTEGER | FK → vehicles                                |
-| center_id   | INTEGER | FK → parking_centers                         |
-| entry_time  | TEXT    | Date/heure de dépôt                          |
-| exit_time   | TEXT    | Date/heure de récupération (nullable)        |
-| status      | INTEGER | 0=en cours, 1=récupéré, 2=non récupéré       |
-| notes       | TEXT    | Notes libres                                 |
+| Colonne          | Type    | Description                                |
+|------------------|---------|--------------------------------------------|
+| id               | INTEGER | PK                                         |
+| vehicle_id       | INTEGER | FK → vehicles                              |
+| center_id        | INTEGER | FK → parking_centers                       |
+| entry_time       | TEXT    | Date/heure de dépôt                        |
+| exit_time        | TEXT    | Date/heure de récupération (nullable)      |
+| status           | INTEGER | 0=en cours, 1=récupéré, 2=non récupéré     |
+| notes            | TEXT    | Notes libres                               |
+| retrieval_token  | TEXT    | Jeton de garde (phase 5, réservé)          |
 
 > Le statut **« Non récupéré »** est calculé dynamiquement à partir de
 > `entry_time + max_hours_delay` (méthode `ParkingSession.effectiveStatus`).
+>
+> Migration : `onUpgrade` fait passer la base de v1 à v2 (table `users`,
+> `center_vehicles`, `app_settings`, colonnes `owner_id` / `model`, et
+> `center_id` rendu nullable par reconstruction de la table `vehicles`).
 
 ---
 
-## 🧪 Comptes / données de démo
+## 🧪 Profils / données de démo
 
-| Plaque      | Propriétaire   | Code numérique | QR code          |
-|-------------|----------------|----------------|------------------|
-| AB-123-CD   | Jean Houngbo   | 1001           | AUTOPARK-1001    |
-| EF-456-GH   | Aïcha Sossou   | 1002           | AUTOPARK-1002    |
-| IJ-789-KL   | Marcel Dossou  | 1003           | AUTOPARK-1003    |
-| MN-012-OP   | Grâce Kponou   | 1004           | AUTOPARK-1004    |
+**Profils créés au premier lancement**
 
-Testez le parcours **Retrouver un auto** → bouton « Saisir code » → `1001`.
+| Profil | Rôle | Téléphone |
+|---|---|---|
+| Awa Dossou | Agent de centre | +229 97 00 00 01 |
+| Jean Houngbo | Propriétaire (2 motos) | +229 97 00 11 22 |
+| Aïcha Sossou | Propriétaire (1 moto) | +229 96 33 44 55 |
+
+**Véhicules de démonstration**
+
+| Plaque      | Propriétaire   | Code numérique | QR code          | État |
+|-------------|----------------|----------------|------------------|------|
+| AB-123-CD   | Jean Houngbo   | 1001           | AUTOPARK-1001    | En garde |
+| EF-456-GH   | Aïcha Sossou   | 1002           | AUTOPARK-1002    | Récupéré |
+| IJ-789-KL   | Marcel Dossou  | 1003           | AUTOPARK-1003    | Non récupéré |
+| MN-012-OP   | Grâce Kponou   | 1004           | AUTOPARK-1004    | En garde |
+| QR-456-TU   | Jean Houngbo   | 9001           | AUTOPARK-9001    | Pas encore partagé |
+
+**Scénarios à tester**
+1. **Propriétaire** → profil « Jean Houngbo » → *Mes motos* → ouvrir
+   `QR-456-TU` → *Partager avec un centre* → la moto rejoint le centre.
+2. **Agent** → profil « Awa Dossou » → *Enregistrer un auto* → scanner/saisir
+   `1001` → l'agent ne crée pas de doublon, il relance une garde.
+3. **Agent** → *Retrouver un auto* → code `1002` → plaque `EF-456-GH` →
+   correspondance confirmée.
 
 ---
 
-## 🗺️ Roadmap (post-MVP)
+## 🗺️ Roadmap
 
-- [ ] Migration SQLite → **PostgreSQL** (API REST sécurisée)
+### Fait
+- [x] **Phase 1 — Rôles & profils** : propriétaire / agent, sélection de profil,
+      véhicules possédés, deux codes distincts (identité statique vs garde).
+- [x] **Phase 2 (partiel)** : partage d'une moto avec un centre, historique
+      multi-centres, pas de doublon à l'enregistrement.
+
+### À venir
+- [ ] **Phase 2 (suite)** : annuaire des centres + « tu es déjà venu ici ».
+- [ ] **Phase 3 — Carte** : centres géolocalisés, marqueurs, fiche détail
+      (OpenStreetMap / `flutter_map`).
+- [ ] **Phase 4 — Wallet & paiements** : solde prépayé, abonnements par centre
+      (jour / semaine / mois), tickets de paiement payés par un tiers,
+      encaissement par l'agent.
+- [ ] **Phase 5 — Sécurité de récupération** : jeton dynamique rotatif stocké
+      dans le Keystore, usage unique, journal d'audit.
+- [ ] **Phase 6 — Backend** : PostgreSQL + API + synchronisation hors-ligne.
 - [ ] **Reconnaissance automatique de plaque** (ALPR — Anyline / ML Kit)
 - [ ] **Vérification biométrique 1:1 / 1:N** (VeriFinger / Innovatrics)
-- [ ] **Paiement Mobile Money** + wallet / abonnements
-- [ ] Gestion multi-utilisateurs et rôles (opérateurs, superviseurs)
-- [ ] Mode hors-ligne + synchronisation
 - [ ] Rapports de fréquentation et revenus
 - [ ] Notifications push (véhicule non récupéré)
 
@@ -256,11 +365,13 @@ Testez le parcours **Retrouver un auto** → bouton « Saisir code » → `1001`
 ## 📌 Notes
 
 - Ce MVP stocke les données **localement** sur l'appareil (SQLite). Aucune
-  donnée n'est envoyée sur un serveur.
+  donnée n'est envoyée sur un serveur : le partage entre appareils nécessitera
+  la phase 6 (backend).
 - Le scan de plaque actuel est **manuel / simulé** ; l'intégration ALPR réelle
   est prévue dans la roadmap.
-- La biométrie et le paiement ne sont **pas** inclus dans ce MVP (voir doc de
-  cadrage).
+- Le wallet et les paiements ne sont **pas** encore implémentés ; ils le seront
+  en mode simulé (phase 4) avant tout branchement d'un PSP agréé.
+- La biométrie n'est **pas** incluse dans ce MVP.
 
 ---
 

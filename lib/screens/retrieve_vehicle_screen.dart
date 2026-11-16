@@ -161,7 +161,9 @@ class _RetrieveVehicleScreenState extends State<RetrieveVehicleScreen> {
       }
 
       final session = await _db.getActiveSessionForVehicle(vehicle.id!);
-      final center = await _db.getCenterById(vehicle.centerId);
+      final centerId = session?.centerId ?? vehicle.centerId;
+      final center =
+          centerId == null ? null : await _db.getCenterById(centerId);
 
       setState(() {
         _foundVehicle = vehicle;
