@@ -140,6 +140,53 @@ flutter test
 
 ---
 
+## 🤖 Intégration continue — APK automatique
+
+Le workflow [`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml)
+compile un APK à chaque modification du code.
+
+**Déclencheurs**
+- `push` sur `main`
+- `push` d'un tag `v*` (ex. `v1.0.0`)
+- `pull_request` vers `main`
+- lancement manuel (`workflow_dispatch`)
+
+**Étapes du job**
+1. Checkout du dépôt
+2. Java 17 (Zulu)
+3. Flutter `3.35.5` (stable, avec cache)
+4. `flutter pub get`
+5. `flutter analyze` (non bloquant)
+6. `flutter test`
+7. `flutter build apk --release`
+8. Renommage en `autopark-<sha>.apk`
+9. Upload de l'artefact **`autopark-apk`** (conservé 30 jours)
+10. Si tag `v*` → création automatique d'une **GitHub Release** avec l'APK joint
+
+**Récupérer l'APK**
+1. Onglet **Actions** du dépôt → dernier run « Build APK »
+2. Section **Artifacts** → télécharger `autopark-apk.zip`
+3. Dézipper → `autopark-<sha>.apk` (installable directement sur Android)
+
+**Publier une version**
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+→ une Release GitHub est créée avec l'APK attaché.
+
+> ℹ️ L'APK de release est signé avec la **clé de debug** Flutter (config par
+> défaut du template). Il s'installe parfaitement pour tester, mais pour le
+> Play Store il faudra configurer une **keystore de release** (non incluse ici
+> pour des raisons de sécurité).
+
+> ⚠️ Les runners GitHub Actions sont **gratuits et illimités sur un dépôt
+> public**. Sur un dépôt privé, ils consomment des minutes et nécessitent un
+> moyen de paiement / une limite de dépenses configurée dans
+> **Settings → Billing & plans**.
+
+---
+
 ## 🗄️ Schéma de la base SQLite
 
 ### `parking_centers`
