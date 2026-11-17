@@ -344,6 +344,10 @@ Lien « ce centre connaît ce véhicule » (résultat d'un partage).
       véhicules possédés, deux codes distincts (identité statique vs garde).
 - [x] **Phase 2 (partiel)** : partage d'une moto avec un centre, historique
       multi-centres, pas de doublon à l'enregistrement.
+- [x] **Phase 3 — Carte** : centres géolocalisés (migration v3 : latitude /
+      longitude sur `parking_centers`), carte OpenStreetMap via `flutter_map`,
+      marqueurs cliquables, fiche détail avec journal, création de centre avec
+      position optionnelle.
 
 ### À venir
 - [ ] **Phase 2 (suite)** : annuaire des centres + « tu es déjà venu ici ».

@@ -4,6 +4,7 @@ import '../models/parking_center.dart';
 import '../theme/app_colors.dart';
 import '../utils/route_animations.dart';
 import 'add_center_screen.dart';
+import 'centers_map_screen.dart';
 import 'daily_list_screen.dart';
 
 class CentersListScreen extends StatefulWidget {
@@ -70,6 +71,13 @@ class _CentersListScreenState extends State<CentersListScreen> {
       appBar: AppBar(
         title: const Text('Mes centres de garde'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            onPressed: () => Navigator.of(context).push(
+              AppRoute.page(const CentersMapScreen()),
+            ),
+            tooltip: 'Voir sur la carte',
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: _addCenter,

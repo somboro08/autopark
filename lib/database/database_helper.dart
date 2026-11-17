@@ -15,9 +15,20 @@ class DatabaseHelper {
 
   static Database? _db;
 
-  /// Version 2 : ajout des profils utilisateurs (propriétaire / agent),
-  /// de la propriété des véhicules et de la préparation du jeton de garde.
-  static const int _dbVersion = 2;
+  /// Version 3 : géolocalisation des centres (carte OpenStreetMap).
+  ///
+  /// Historique : v2 = profils utilisateurs (propriétaire / agent), propriété
+  /// des véhicules et préparation du jeton de garde.
+  static const int _dbVersion = 3;
+
+  /// Positions de démonstration dans la zone Cotonou / Porto-Novo.
+  static const List<List<double>> _demoLocations = [
+    [6.36536, 2.41833],
+    [6.35590, 2.42510],
+    [6.37024, 2.44620],
+    [6.44890, 2.35560],
+    [6.49690, 2.62890],
+  ];
 
   Future<Database> get db async {
     _db ??= await _initDb();
@@ -42,6 +53,8 @@ class DatabaseHelper {
         name TEXT NOT NULL,
         address TEXT NOT NULL,
         max_hours_delay INTEGER DEFAULT 24,
+        latitude REAL,
+        longitude REAL,
         created_at TEXT NOT NULL
       )
     ''');
@@ -159,6 +172,25 @@ class DatabaseHelper {
         'ALTER TABLE parking_sessions ADD COLUMN retrieval_token TEXT',
       );
     }
+
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE parking_centers ADD COLUMN latitude REAL');
+      await db.execute('ALTER TABLE parking_centers ADD COLUMN longitude REAL');
+
+      // Les centres existants n'ont pas de position : on leur attribue une
+      // position de démonstration dans la zone Cotonou afin qu'ils soient
+      // visibles sur la carte. L'agent peut la corriger depuis sa fiche centre.
+      final rows = await db.query('parking_centers', columns: ['id']);
+      for (var i = 0; i < rows.length; i++) {
+        final location = _demoLocations[i % _demoLocations.length];
+        await db.update(
+          'parking_centers',
+          {'latitude': location[0], 'longitude': location[1]},
+          where: 'id = ?',
+          whereArgs: [rows[i]['id']],
+        );
+      }
+    }
   }
 
   // ---------- Paramètres applicatifs ----------
@@ -255,6 +287,32 @@ class DatabaseHelper {
       center.toMap(),
       where: 'id = ?',
       whereArgs: [center.id],
+    );
+  }
+
+  /// Centre disposant d'une position, utilisable sur la carte.
+  Future<List<ParkingCenter>> getLocatedCenters() async {
+    final database = await db;
+    final maps = await database.query(
+      'parking_centers',
+      where: 'latitude IS NOT NULL AND longitude IS NOT NULL',
+      orderBy: 'name ASC',
+    );
+    return maps.map((m) => ParkingCenter.fromMap(m)).toList();
+  }
+
+  /// Enregistre / corrige la position d'un centre.
+  Future<void> updateCenterLocation(
+    int centerId,
+    double latitude,
+    double longitude,
+  ) async {
+    final database = await db;
+    await database.update(
+      'parking_centers',
+      {'latitude': latitude, 'longitude': longitude},
+      where: 'id = ?',
+      whereArgs: [centerId],
     );
   }
 
@@ -540,12 +598,27 @@ class DatabaseHelper {
     // Le profil agent est sélectionné par défaut sur une base neuve.
     await setSetting('active_user_id', agentId.toString());
 
-    // --- Centre de démonstration ---
-    final centerId = await insertCenter(ParkingCenter(
-      name: 'Parking Central Cotonou',
-      address: 'Avenue Steinmetz, Cotonou',
-      maxHoursDelay: 24,
-    ));
+    // --- Centres de démonstration (zone Cotonou / Abomey-Calavi / Porto-Novo) ---
+    final demoCenters = <List<Object>>[
+      ['Parking Central Cotonou', 'Avenue Steinmetz, Cotonou', 24, 6.36536, 2.41833],
+      ['Parking Ganhi Sécurité', 'Boulevard de la Marina, Cotonou', 12, 6.35590, 2.42510],
+      ['Parking Akpakpa Moto', 'Carrefour Akpakpa, Cotonou', 24, 6.37024, 2.44620],
+      ['Parking Calavi Center', 'Carrefour IITA, Abomey-Calavi', 48, 6.44890, 2.35560],
+      ['Parking Porto-Novo Gare', 'Avenue Jean Bayol, Porto-Novo', 24, 6.49690, 2.62890],
+    ];
+
+    var centerId = 0;
+    for (var i = 0; i < demoCenters.length; i++) {
+      final c = demoCenters[i];
+      final id = await insertCenter(ParkingCenter(
+        name: c[0] as String,
+        address: c[1] as String,
+        maxHoursDelay: c[2] as int,
+        latitude: c[3] as double,
+        longitude: c[4] as double,
+      ));
+      if (i == 0) centerId = id;
+    }
 
     // --- Véhicules appartenant aux propriétaires ---
     final demoVehicles = [

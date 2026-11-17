@@ -15,6 +15,8 @@ class _AddCenterScreenState extends State<AddCenterScreen> {
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
   final _delayController = TextEditingController(text: '24');
+  final _latitudeController = TextEditingController();
+  final _longitudeController = TextEditingController();
   bool _isSaving = false;
 
   @override
@@ -22,6 +24,8 @@ class _AddCenterScreenState extends State<AddCenterScreen> {
     _nameController.dispose();
     _addressController.dispose();
     _delayController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
     super.dispose();
   }
 
@@ -33,6 +37,12 @@ class _AddCenterScreenState extends State<AddCenterScreen> {
       return;
     }
     final delay = int.tryParse(_delayController.text) ?? 24;
+    final latitude = double.tryParse(_latitudeController.text.trim().isEmpty
+        ? ''
+        : _latitudeController.text.trim());
+    final longitude = double.tryParse(_longitudeController.text.trim().isEmpty
+        ? ''
+        : _longitudeController.text.trim());
 
     setState(() => _isSaving = true);
     try {
@@ -40,6 +50,8 @@ class _AddCenterScreenState extends State<AddCenterScreen> {
         name: _nameController.text.trim(),
         address: _addressController.text.trim(),
         maxHoursDelay: delay,
+        latitude: latitude,
+        longitude: longitude,
       );
       await _db.insertCenter(center);
       if (mounted) {
@@ -101,20 +113,51 @@ class _AddCenterScreenState extends State<AddCenterScreen> {
             ),
             const SizedBox(height: 16),
             TextFormField(
+              controller: _latitudeController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Latitude (optionnel)',
+                hintText: 'Ex: 6.36536',
+                prefixIcon: Icon(Icons.gps_fixed),
+                suffixText: '°',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _longitudeController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Longitude (optionnel)',
+                hintText: 'Ex: 2.41833',
+                prefixIcon: Icon(Icons.gps_fixed),
+                suffixText: '°',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Laissez vide si vous ne connaissez pas la position. Le centre \napparaîtra dans la liste mais pas sur la carte.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).textTheme.bodyMedium?.color
+                    ?.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
               controller: _delayController,
+              keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Délai de garde (heures)',
                 hintText: '24',
                 prefixIcon: Icon(Icons.access_time),
                 suffixText: 'heures',
               ),
-              keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 8),
             Text(
               'Délai après lequel un véhicule non récupéré passe en statut "Non récupéré".',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                color: Theme.of(context).textTheme.bodyMedium?.color
+                    ?.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 32),
